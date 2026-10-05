@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SousLine — Sous Vide Time &amp; Temperature Calculator</title>
+<meta name="description" content="SousLine is a free sous vide time and temperature calculator with shape-aware heating times, a sous vide pasteurization time engine and a multi-item bath sequencer — built on Douglas Baldwin's published tables.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root { --bg:#0E1512; --primary:#F97316; --accent:#67E8F9; }
+  html { scroll-behavior:smooth; }
+  body { background:var(--bg); color:#E7EFEA; font-family:'Inter',system-ui,sans-serif;
+    background-image:linear-gradient(rgba(103,232,249,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(103,232,249,.035) 1px,transparent 1px);
+    background-size:34px 34px; }
+  .mono { font-family:'JetBrains Mono',ui-monospace,monospace; }
+  .panel { background:rgba(20,29,24,.92); border:1px solid rgba(103,232,249,.14); border-radius:14px; position:relative; }
+  .panel::before,.panel::after{content:"";position:absolute;width:14px;height:14px;border-color:var(--primary);opacity:.85}
+  .panel::before{top:-1px;left:-1px;border-top:2px solid;border-left:2px solid;border-color:var(--primary);border-top-left-radius:14px}
+  .panel::after{bottom:-1px;right:-1px;border-bottom:2px solid;border-right:2px solid;border-color:var(--primary);border-bottom-right-radius:14px}
+  .panel-head { display:flex;align-items:center;gap:.6rem;padding:.7rem 1.1rem;border-bottom:1px dashed rgba(103,232,249,.18);
+    font-family:'JetBrains Mono',monospace;font-size:.72rem;letter-spacing:.22em;color:var(--accent);text-transform:uppercase; }
+  .led { width:9px;height:9px;border-radius:9999px;background:var(--primary);box-shadow:0 0 10px var(--primary);animation:blink 2.4s infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.35} }
+  .readout { font-family:'JetBrains Mono',monospace;color:var(--accent);text-shadow:0 0 18px rgba(103,232,249,.35); }
+  .readout-warm { font-family:'JetBrains Mono',monospace;color:var(--primary);text-shadow:0 0 18px rgba(249,115,22,.35); }
+  select,input[type=number],input[type=datetime-local]{ background:#0B110E;border:1px solid rgba(103,232,249,.25);color:#E7EFEA;border-radius:10px;padding:.6rem .8rem;width:100%;font-family:'JetBrains Mono',monospace;font-size:.9rem; }
+  select:focus,input:focus{ outline:2px solid var(--primary);outline-offset:1px; }
+  input[type=range]{ width:100%;accent-color:var(--primary); }
+  .seg-btn{ border:1px solid rgba(103,232,249,.25);border-radius:10px;padding:.6rem .4rem;font-size:.78rem;font-family:'JetBrains Mono',monospace;color:#B9CBC2;background:#0B110E;cursor:pointer;transition:all .15s; }
+  .seg-btn.active{ background:var(--primary);border-color:var(--primary);color:#0E1512;font-weight:700;box-shadow:0 0 14px rgba(249,115,22,.5); }
+  .btn-primary{ background:var(--primary);color:#0E1512;font-weight:800;border-radius:10px;padding:.7rem 1.2rem;font-family:'JetBrains Mono',monospace;letter-spacing:.08em;box-shadow:0 0 18px rgba(249,115,22,.4);transition:transform .1s; }
+  .btn-primary:active{ transform:scale(.97); }
+  .btn-ghost{ border:1px solid rgba(103,232,249,.35);color:var(--accent);border-radius:10px;padding:.7rem 1.2rem;font-family:'JetBrains Mono',monospace;letter-spacing:.08em; }
+  .badge-free{ display:inline-flex;align-items:center;gap:.5rem;border:1px solid var(--primary);color:var(--primary);border-radius:9999px;padding:.35rem 1rem;font-family:'JetBrains Mono',monospace;font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;box-shadow:0 0 12px rgba(249,115,22,.25) inset; }
+  .warn{ border-left:3px solid var(--primary);background:rgba(249,115,22,.08);padding:.6rem .9rem;border-radius:0 8px 8px 0;font-size:.85rem; }
+  .faq{ border:1px solid rgba(103,232,249,.16);border-radius:12px;background:rgba(20,29,24,.85); }
+  .faq summary{ cursor:pointer;padding:1rem 1.25rem;font-weight:600;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:1rem; }
+  .faq summary::-webkit-details-marker{ display:none; }
+  .faq summary::after{ content:"+";color:var(--primary);font-size:1.4rem;font-family:'JetBrains Mono',monospace; }
+  .faq[open] summary::after{ content:"–"; }
+  .faq .faq-body{ padding:0 1.25rem 1.25rem;color:#B9CBC2;line-height:1.7; }
+  .article h2{ font-size:1.5rem;font-weight:800;margin:2.2rem 0 .9rem;color:#fff; }
+  .article h3{ font-size:1.15rem;font-weight:700;margin:1.6rem 0 .6rem;color:var(--accent); }
+  .article p,.article li{ color:#C4D4CB;line-height:1.8;margin-bottom:.9rem; }
+  .article ul{ list-style:disc;padding-left:1.4rem; }
+  .article table{ width:100%;border-collapse:collapse;margin:1rem 0;font-size:.85rem;font-family:'JetBrains Mono',monospace; }
+  .article th,.article td{ border:1px solid rgba(103,232,249,.18);padding:.5rem .6rem;text-align:left; }
+  .article th{ background:rgba(103,232,249,.08);color:var(--accent); }
+  .timeline-dot{ width:12px;height:12px;border-radius:9999px;background:var(--primary);box-shadow:0 0 10px var(--primary);flex-shrink:0;margin-top:4px; }
+  @media print{ .no-print{ display:none !important; } }
+</style>
+<script id="v3-sousline-sous-vide-guide-lib">
+'use strict';
+/**
+ * SousLine — sous-vide planner engine (pure logic, no DOM).
+ *
+ * Heating and pasteurization data compiled from public knowledge of
+ * Dr. Douglas Baldwin's "A Practical Guide to Sous Vide Cooking"
+ * (Tables 1.1 cooling, 2.2 heating-thawed, 2.3 heating-frozen,
+ * 4.1 poultry pasteurization, 5.1 meat pasteurization).
+ * All table times are stored in MINUTES. "null" = beyond the published
+ * table range for that shape (Baldwin leaves those cells blank).
+ *
+ * Fish pasteurization: Baldwin's Table 3.1 model parameters are public —
+ * D605.59 = 2.88 min (lean fish) and D605.68 = 5.13 min (fatty fish)
+ * for a one-million-to-one reduction of Listeria (Embarek and Huss, 1993),
+ * with z = 7.54 C for Listeria. Hold time at core temp T:
+ *   hold(T) = 6 * Dref * 10^((60.5 - T) / 7.54)
+ * Total fish time = heat-through (Table 2.2) + hold. This is a
+ * documented approximation; meat/poultry use the tables directly.
+ */
+
+var SOUSLINE = SOUSLINE || {};
+
+SOUSLINE.MIN_PASTEURIZATION_C = 54.4; // 130 F — Baldwin's floor for pasteurizing baths
+
+/* ------------------------------------------------------------------ */
+/* Table 2.2 — heating times for THAWED meat, minutes                   */
+/* ------------------------------------------------------------------ */
+var SL_HEAT_THAWED = {
+  thickness: [5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100,105,110,115],
+  slab:     [5,19,35,50,75,90,120,150,180,210,240,285,330,null,null,null,null,null,null,null,null,null,null],
+  cylinder: [5,11,18,30,40,50,60,75,90,120,135,150,180,210,225,255,285,315,360,null,null,null,null],
+  sphere:   [4,8,13,20,25,35,45,55,75,90,90,120,135,150,165,180,210,225,255,285,300,330,360]
+};
+
+/* ------------------------------------------------------------------ */
+/* Table 2.3 — heating times for FROZEN meat, minutes                   */
+/* ------------------------------------------------------------------ */
+var SL_HEAT_FROZEN = {
+  thickness: [5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100,105,110,115],
+  slab:     [7,30,50,75,105,135,180,210,270,315,375,435,495,null,null,null,null,null,null,null,null,null,null],
+  cylinder: [7,17,30,40,55,75,90,120,150,165,195,240,270,300,345,390,435,480,525,null,null,null,null],
+  sphere:   [6,12,20,30,40,55,75,90,105,120,150,165,195,225,255,285,315,345,375,420,450,495,540]
+};
+
+/* ------------------------------------------------------------------ */
+/* Table 1.1 — cooling times to 41 F (5 C) in ice water, minutes        */
+/* ------------------------------------------------------------------ */
+var SL_COOL = {
+  thickness: [5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100,105,110],
+  slab:     [5,14,25,35,50,75,90,105,135,165,195,225,255,285,330,null,null,null,null,null,null,null],
+  cylinder: [3,8,14,20,30,40,50,60,75,90,105,120,135,165,180,210,225,255,285,300,330,360],
+  sphere:   [3,6,10,15,20,30,35,45,55,60,75,90,105,120,135,150,165,180,210,225,240,270]
+};
+
+/* ------------------------------------------------------------------ */
+/* Table 5.1 — meat (beef/pork/lamb) pasteurization, minutes            */
+/* Water-bath columns in C                                             */
+/* ------------------------------------------------------------------ */
+var SL_PAST_MEAT = {
+  temps: [55,56,57,58,59,60,61,62,63,64,65,66],
+  thickness: [5,10,15,20,25,30,35,40,45,50,55,60,65,70],
+  rows: [
+    [120,75,60,45,40,30,25,25,18,16,14,13],
+    [120,90,75,55,45,40,35,30,30,25,25,25],
+    [135,105,90,75,60,55,50,45,40,40,35,35],
+    [150,120,105,90,75,75,60,55,55,50,45,45],
+    [165,135,120,105,90,90,75,75,75,60,55,55],
+    [180,150,120,120,105,90,90,90,75,75,75,75],
+    [195,165,135,120,120,105,105,90,90,90,75,75],
+    [210,180,150,135,135,120,105,105,105,90,90,90],
+    [240,195,180,165,150,135,135,120,120,105,105,105],
+    [270,225,195,180,165,150,150,135,135,120,120,120],
+    [300,255,225,210,180,180,165,165,150,150,135,135],
+    [315,285,255,225,210,195,180,180,165,165,150,150],
+    [360,315,285,255,240,225,210,195,195,180,180,165],
+    [390,345,315,285,255,240,225,225,210,195,195,195]
+  ]
+};
+
+/* ------------------------------------------------------------------ */
+/* Table 4.1 — poultry pasteurization, minutes. Water-bath columns in C */
+/* ------------------------------------------------------------------ */
+var SL_PAST_POULTRY = {
+  temps: [57,58,59,60,61,62,63,64,65],
+  thickness: [5,10,15,20,25,30,35,40,45,50,55,60,65,70],
+  rows: [
+    [135,105,75,45,35,25,18,15,13],
+    [135,105,75,55,40,35,30,25,20],
+    [150,105,90,75,50,45,40,35,30],
+    [165,120,105,75,75,55,50,45,40],
+    [180,135,120,90,90,75,75,60,55],
+    [195,165,135,120,105,90,90,75,75],
+    [225,180,150,135,120,105,105,90,90],
+    [240,195,165,150,135,120,120,105,105],
+    [270,225,195,180,165,150,135,120,120],
+    [285,255,225,195,180,165,150,150,135],
+    [315,270,240,225,210,195,180,165,165],
+    [345,300,270,255,225,210,195,195,180],
+    [375,330,300,270,255,240,225,210,195],
+    [420,360,330,300,285,270,255,240,225]
+  ]
+};
+
+/* Fish pasteurization model constants (Table 3.1 basis, see header). */
+var SL_FISH = {
+  z: 7.54,        // Listeria z-value, C
+  tRef: 60.5,     // reference temp, C
+  dLean: 2.88,    // minutes, lean fish
+  dFatty: 5.13,   // minutes, fatty fish
+  logReduction: 6 // one million to one
+};
+
+/* ------------------------------------------------------------------ */
+/* Protein catalogue                                                    */
+/* ------------------------------------------------------------------ */
+SOUSLINE.PROTEINS = [
+  { id: 'beef',          name: 'Beef (steak / roast)',   group: 'meat',
+    doneness: [['Rare',50],['Medium-Rare',55],['Medium',60],['Medium-Well',65],['Well-Done',71]] },
+  { id: 'pork',          name: 'Pork (chop / loin)',     group: 'meat',
+    doneness: [['Medium-Rare',58],['Medium',61],['Medium-Well',65],['Well-Done',71]] },
+  { id: 'lamb',          name: 'Lamb (rack / chop)',     group: 'meat',
+    doneness: [['Rare',52],['Medium-Rare',55],['Medium',60],['Well-Done',71]] },
+  { id: 'chicken-breast',name: 'Chicken Breast',         group: 'poultry',
+    doneness: [['Juicy',60],['Tender',63],['Firm',65],['Well-Done',74]] },
+  { id: 'chicken-thigh', name: 'Chicken Thigh / Leg',    group: 'poultry',
+    doneness: [['Juicy & Tender',65],['Fall-off-bone',74],['Confit-style',82]] },
+  { id: 'duck-breast',   name: 'Duck Breast',            group: 'poultry',
+    doneness: [['Rare',54],['Medium-Rare',57],['Medium',60]] },
+  { id: 'fish-lean',     name: 'Lean Fish (cod, halibut)', group: 'fish', fatty: false,
+    doneness: [['Rare',45],['Medium-Rare',50],['Medium',55],['Flaky',60]] },
+  { id: 'fish-fatty',    name: 'Fatty Fish (salmon, tuna)', group: 'fish', fatty: true,
+    doneness: [['Rare',42],['Medium-Rare',50],['Medium',60]] }
+];
+
+SOUSLINE.SHAPES = ['slab', 'cylinder', 'sphere'];
+SOUSLINE.SHAPE_LABELS = { slab: 'Slab (steak, fillet, chop)', cylinder: 'Cylinder (roulade, sausage, tenderloin)', sphere: 'Sphere (meatball, whole roast)' };
+
+/* ------------------------------------------------------------------ */
+/* Small numeric helpers                                                */
+/* ------------------------------------------------------------------ */
+
+function slIsNum(x) {
+  return typeof x === 'number' && isFinite(x);
+}
+
+function slClamp(x, lo, hi) {
+  if (!slIsNum(x)) return lo;
+  return Math.min(hi, Math.max(lo, x));
+}
+
+/** Linear interpolation between two known points. */
+function slLerp(x, x0, y0, x1, y1) {
+  if (x1 === x0) return y0;
+  return y0 + (y1 - y0) * ((x - x0) / (x1 - x0));
+}
+
+/**
+ * Interpolate a 1-D table (array of values indexed by xs) at x.
+ * Returns { value, clamped, beyond } where beyond=true means x was
+ * outside the table range (clamped to the edge).
+ */
+function slInterp1(xs, ys, x) {
+  x = Number(x);
+  if (!slIsNum(x)) x = xs[0];
+  var lo = xs[0], hi = xs[xs.length - 1];
+  var beyond = x < lo || x > hi;
+  var xc = slClamp(x, lo, hi);
+  var i = 0;
+  while (i < xs.length - 2 && xs[i + 1] < xc) i++;
+  var x0 = xs[i], x1 = xs[i + 1];
+  var y0 = ys[i], y1 = ys[i + 1];
+  if (y0 == null || y1 == null) {
+    // Walk outward to the nearest pair of non-null cells.
+    var a = i, b = i + 1;
+    while (a > 0 && ys[a] == null) a--;
+    while (b < xs.length - 1 && ys[b] == null) b++;
+    if (ys[a] == null || ys[b] == null) {
+      var v = ys[a] != null ? ys[a] : ys[b];
+      return { value: v, clamped: true, beyond: true };
+    }
+    return { value: slLerp(xc, xs[a], ys[a], xs[b], ys[b]), clamped: true, beyond: beyond };
+  }
+  return { value: slLerp(xc, x0, y0, x1, y1), clamped: beyond, beyond: beyond };
+}
+
+/**
+ * Bilinear interpolation over a 2-D table { temps, thickness, rows }.
+ * Returns { value, beyond }.
+ */
+function slInterp2(table, tempC, thickMM) {
+  var temps = table.temps, ths = table.thickness, rows = table.rows;
+  var t = slClamp(tempC, temps[0], temps[temps.length - 1]);
+  var d = slClamp(thickMM, ths[0], ths[ths.length - 1]);
+  var beyond = tempC < temps[0] || tempC > temps[temps.length - 1] ||
+               thickMM < ths[0] || thickMM > ths[ths.length - 1];
+  var ti = 0;
+  while (ti < temps.length - 2 && temps[ti + 1] < t) ti++;
+  var di = 0;
+  while (di < ths.length - 2 && ths[di + 1] < d) di++;
+  var q11 = rows[di][ti],     q21 = rows[di][ti + 1];
+  var q12 = rows[di + 1][ti], q22 = rows[di + 1][ti + 1];
+  var vt0 = slLerp(t, temps[ti], q11, temps[ti + 1], q21);
+  var vt1 = slLerp(t, temps[ti], q12, temps[ti + 1], q22);
+  var v = slLerp(d, ths[di], vt0, ths[di + 1], vt1);
+  return { value: v, beyond: beyond };
+}
+
+/* ------------------------------------------------------------------ */
+/* Public engine API                                                    */
+/* ------------------------------------------------------------------ */
+
+SOUSLINE.getProtein = function (id) {
+  for (var i = 0; i < SOUSLINE.PROTEINS.length; i++) {
+    if (SOUSLINE.PROTEINS[i].id === id) return SOUSLINE.PROTEINS[i];
+  }
+  return null;
+};
+
+SOUSLINE.normaliseShape = function (shape) {
+  if (shape === 'slab' || shape === 'cylinder' || shape === 'sphere') return shape;
+  return 'slab';
+};
+
+/**
+ * Heat-through time: core within 0.5 C of the bath (Baldwin 2.2 / 2.3).
+ * Returns { minutes, beyond } — minutes rounded up.
+ */
+SOUSLINE.heatThroughMin = function (shape, thicknessMM, frozen) {
+  shape = SOUSLINE.normaliseShape(shape);
+  var table = frozen ? SL_HEAT_FROZEN : SL_HEAT_THAWED;
+  var r = slInterp1(table.thickness, table[shape], thicknessMM);
+  return { minutes: r.value == null ? null : Math.ceil(r.value), beyond: r.beyond };
+};
+
+/**
+ * Cook-chill: ice-water time to 41 F / 5 C core (Baldwin 1.1).
+ */
+SOUSLINE.coolingMin = function (shape, thicknessMM) {
+  shape = SOUSLINE.normaliseShape(shape);
+  var r = slInterp1(SL_COOL.thickness, SL_COOL[shape], thicknessMM);
+  return { minutes: r.value == null ? null : Math.ceil(r.value), beyond: r.beyond };
+};
+
+/**
+ * Pasteurization TOTAL bath time (heat-through + hold) in minutes.
+ * frozen adds the frozen-vs-thawed heat-through delta (conservative,
+ * documented approximation — Baldwin publishes no frozen tables).
+ * Returns { minutes|null, hold, heat, beyond, pasteurizable, reason }.
+ */
+SOUSLINE.pasteurizeMin = function (proteinId, thicknessMM, tempC, frozen) {
+  var p = SOUSLINE.getProtein(proteinId);
+  if (!p) return { minutes: null, pasteurizable: false, reason: 'unknown-protein' };
+  tempC = Number(tempC);
+  thicknessMM = Number(thicknessMM);
+  if (!slIsNum(tempC) || !slIsNum(thicknessMM) || thicknessMM <= 0) {
+    return { minutes: null, pasteurizable: false, reason: 'bad-input' };
+  }
+  if (tempC < SOUSLINE.MIN_PASTEURIZATION_C) {
+    return { minutes: null, pasteurizable: false, reason: 'below-range' };
+  }
+
+  var total, heat, beyond = false;
+  if (p.group === 'fish') {
+    // Model-based total (Table 3.1 parameters) — see header comment.
+    var h = SOUSLINE.heatThroughMin('slab', thicknessMM, false);
+    heat = h.minutes;
+    beyond = h.beyond;
+    var dRef = p.fatty ? SL_FISH.dFatty : SL_FISH.dLean;
+    var hold = SL_FISH.logReduction * dRef * Math.pow(10, (SL_FISH.tRef - tempC) / SL_FISH.z);
+    total = heat + hold;
+  } else {
+    var table = p.group === 'poultry' ? SL_PAST_POULTRY : SL_PAST_MEAT;
+    var r = slInterp2(table, tempC, thicknessMM);
+    total = r.value;
+    beyond = r.beyond;
+    var hs = SOUSLINE.heatThroughMin('slab', thicknessMM, false);
+    heat = hs.minutes;
+  }
+
+  var holdOut = total - heat;
+  if (frozen) {
+    var ht = SOUSLINE.heatThroughMin('slab', thicknessMM, false);
+    var hf = SOUSLINE.heatThroughMin('slab', thicknessMM, true);
+    if (ht.minutes != null && hf.minutes != null) total += (hf.minutes - ht.minutes);
+  }
+
+  return {
+    minutes: Math.ceil(total),
+    hold: Math.max(0, Math.ceil(holdOut)),
+    heat: heat,
+    beyond: beyond,
+    pasteurizable: true,
+    reason: 'ok',
+    model: p.group === 'fish' ? 'table-3.1-model' : (p.group === 'poultry' ? 'table-4.1' : 'table-5.1')
+  };
+};
+
+/**
+ * Full cook plan for one item.
+ * opts: { proteinId, shape, thicknessMM, tempC, frozen }
+ * Never throws; unknown protein -> { ok:false, reason }.
+ */
+SOUSLINE.planCook = function (opts) {
+  opts = opts || {};
+  var p = SOUSLINE.getProtein(opts.proteinId);
+  if (!p) return { ok: false, reason: 'unknown-protein' };
+  var shape = SOUSLINE.normaliseShape(opts.shape);
+  var thick = Number(opts.thicknessMM);
+  if (!slIsNum(thick) || thick <= 0) thick = 25;
+  thick = slClamp(thick, 1, 200);
+  var tempC = Number(opts.tempC);
+  if (!slIsNum(tempC)) tempC = p.doneness[1] ? p.doneness[1][1] : 60;
+  var frozen = !!opts.frozen;
+
+  var heat = SOUSLINE.heatThroughMin(shape, thick, frozen);
+  var past = SOUSLINE.pasteurizeMin(opts.proteinId, thick, tempC, frozen);
+  var chill = SOUSLINE.coolingMin(shape, thick);
+
+  var warnings = [];
+  if (heat.beyond) warnings.push('Thickness is past the published heating table for this shape — time is clamped to the table edge.');
+  if (past.beyond) warnings.push('Thickness is past the published pasteurization table — time is clamped to the table edge.');
+  if (!past.pasteurizable && past.reason === 'below-range') {
+    warnings.push('Bath is below 54.4 C (130 F): pasteurization is not practical at this temperature. Serve within 4 hours and do not cook-chill.');
+  }
+  if (tempC > 90) warnings.push('Very high bath temperature — check your circulator rating.');
+  if (p.group === 'fish' && past.pasteurizable) {
+    warnings.push('Fish pasteurization uses Baldwin\u2019s published Table 3.1 model parameters (approximation); meat and poultry times are interpolated directly from Tables 5.1 / 4.1.');
+  }
+
+  // Recommended bath time = pasteurization total when available, else heat-through.
+  var totalMin = past.pasteurizable ? past.minutes : heat.minutes;
+
+  return {
+    ok: true,
+    proteinId: p.id, proteinName: p.name,
+    shape: shape, thicknessMM: thick, frozen: frozen,
+    bathTempC: Math.round(tempC * 10) / 10,
+    bathTempF: Math.round(SOUSHELPER_cToF(tempC) * 10) / 10,
+    heatMin: heat.minutes,
+    pasteurizable: past.pasteurizable,
+    pasteurTotalMin: past.minutes,
+    pasteurHoldMin: past.hold != null ? past.hold : null,
+    chillMin: chill.minutes,
+    totalMin: totalMin,
+    warnings: warnings,
+    model: past.model || null
+  };
+};
+
+/**
+ * Multi-item bath sequencer. items: array of planCook-style opts.
+ * serveAtMs: epoch ms of target serving time.
+ * Returns items annotated with startAtMs, sorted earliest-start first,
+ * plus temp-conflict flags (items >1.5 C apart need separate baths).
+ */
+SOUSLINE.sequenceBath = function (items, serveAtMs) {
+  items = items || [];
+  var out = [];
+  for (var i = 0; i < items.length; i++) {
+    var plan = SOUSLINE.planCook(items[i]);
+    if (!plan.ok) continue;
+    out.push({
+      index: i,
+      name: items[i].label || plan.proteinName,
+      proteinName: plan.proteinName,
+      shape: plan.shape,
+      thicknessMM: plan.thicknessMM,
+      frozen: plan.frozen,
+      bathTempC: plan.bathTempC,
+      totalMin: plan.totalMin,
+      startAtMs: serveAtMs - plan.totalMin * 60000
+    });
+  }
+  out.sort(function (a, b) { return a.startAtMs - b.startAtMs; });
+  // Flag temperature conflicts.
+  for (var j = 0; j < out.length; j++) {
+    out[j].tempConflict = false;
+    for (var k = 0; k < out.length; k++) {
+      if (j !== k && Math.abs(out[j].bathTempC - out[k].bathTempC) > 1.5) {
+        out[j].tempConflict = true;
+        break;
+      }
+    }
+  }
+  return out;
+};
+
+/* ------------------------------------------------------------------ */
+/* Formatting helpers                                                   */
+/* ------------------------------------------------------------------ */
+
+function SOUSHELPER_cToF(c) { return c * 9 / 5 + 32; }
+SOUSLINE.cToF = SOUSHELPER_cToF;
+SOUSLINE.fToC = function (f) { return (f - 32) * 5 / 9; };
+SOUSLINE.mmToIn = function (mm) { return mm / 25.4; };
+SOUSLINE.inToMm = function (inch) { return inch * 25.4; };
+
+/** 75 -> "1 h 15 min", 45 -> "45 min", 1500 -> "25 h". */
+SOUSLINE.formatDuration = function (minutes) {
+  if (minutes == null || !slIsNum(minutes)) return '—';
+  var m = Math.max(0, Math.round(minutes));
+  if (m < 60) return m + ' min';
+  var h = Math.floor(m / 60), r = m % 60;
+  if (r === 0) return h + ' h';
+  return h + ' h ' + r + ' min';
+};
+
+/** Epoch ms -> "6:30 PM" style local time. */
+SOUSLINE.formatClock = function (ms) {
+  var d = new Date(ms);
+  var h = d.getHours(), m = d.getMinutes();
+  var ap = h >= 12 ? 'PM' : 'AM';
+  var h12 = h % 12; if (h12 === 0) h12 = 12;
+  var mm = m < 10 ? '0' + m : '' + m;
+  return h12 + ':' + mm + ' ' + ap;
+};
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = SOUSLINE;
+}
+
+</script>
+</head>
+<body id="top">
+
+<!-- ===================== HEADER ===================== -->
+<header class="sticky top-0 z-50 no-print" style="background:rgba(14,21,18,.92);backdrop-filter:blur(10px);border-bottom:1px solid rgba(103,232,249,.14)">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+    <a href="#top" class="flex items-center gap-2.5">
+      <span class="led"></span>
+      <span class="mono font-extrabold text-xl tracking-widest" style="color:#fff">SOUS<span style="color:var(--primary)">LINE</span></span>
+    </a>
+    <nav class="mono text-sm flex items-center gap-5">
+      <a href="#top" class="hover:opacity-80" style="color:var(--accent)">Home</a>
+      <span style="color:#3A4A43">|</span>
+      <a href="https://fixoraa.tech" class="hover:opacity-80" style="color:var(--accent)">More Tools</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ===================== HERO ===================== -->
+<section class="max-w-6xl mx-auto px-4 sm:px-6 pt-10 pb-4 text-center">
+  <div class="mono text-xs tracking-[0.3em] mb-3" style="color:var(--accent)">SOUS-VIDE MISSION CONTROL · v3.0</div>
+  <h1 class="text-4xl sm:text-5xl font-extrabold leading-tight" style="color:#fff">
+    Sous Vide <span style="color:var(--primary)">Time &amp; Temperature</span> Calculator
+  </h1>
+  <p class="mt-4 max-w-2xl mx-auto" style="color:#9DB3A8">
+    Shape-aware heating times, pasteurization hold times, frozen-start correction and a multi-item
+    bath sequencer — computed from Douglas Baldwin's published sous-vide tables, right in your browser.
+  </p>
+  <div class="mt-5"><span class="badge-free">⚡ Unlimited Free Usage</span></div>
+</section>
+
+<!-- ===================== TOP AD ===================== -->
+<div class="no-print mx-auto max-w-6xl px-4 sm:px-6 pt-4" role="complementary" aria-label="Advertisement">
+  <div class="mx-auto text-center" style="max-width:728px">
+    <span class="block text-[10px] tracking-[0.18em] uppercase text-slate-400 mb-1.5">Advertisement</span>
+    <div class="flex justify-center overflow-hidden">
+      <div class="origin-top scale-[0.44] sm:scale-100 shrink-0">
+        <script>
+          atOptions = { 'key' : '4e68ac77881c17fe128a46565d9a4e8c', 'format' : 'iframe', 'height' : 90, 'width' : 728, 'params' : {} };
+        </script>
+        <script src="https://www.highrevenueformat.com/4e68ac77881c17fe128a46565d9a4e8c/invoke.js"></script>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== TOOL ===================== -->
+<main class="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+  <div class="grid lg:grid-cols-2 gap-6">
+
+    <!-- ===== PANEL A: SAMPLE INPUT ===== -->
+    <section class="panel no-print" aria-label="Sample input">
+      <div class="panel-head"><span class="led"></span> ▸ Sample Input</div>
+      <div class="p-5 space-y-5">
+        <div>
+          <label for="protein" class="mono text-xs tracking-widest uppercase block mb-2" style="color:var(--accent)">Protein</label>
+          <select id="protein"></select>
+        </div>
+        <div>
+          <label for="doneness" class="mono text-xs tracking-widest uppercase block mb-2" style="color:var(--accent)">Doneness</label>
+          <select id="doneness"></select>
+        </div>
+        <div>
+          <span class="mono text-xs tracking-widest uppercase block mb-2" style="color:var(--accent)">Geometry</span>
+          <div class="grid grid-cols-3 gap-2" id="shapeSeg">
+            <button type="button" class="seg-btn active" data-shape="slab">▭ Slab</button>
+            <button type="button" class="seg-btn" data-shape="cylinder">⬤ Cylinder</button>
+            <button type="button" class="seg-btn" data-shape="sphere">● Sphere</button>
+          </div>
+        </div>
+        <div>
+          <label for="thickness" class="mono text-xs tracking-widest uppercase block mb-2" style="color:var(--accent)">
+            Thickness — <span id="thickVal" class="readout-warm">25 mm</span> <span id="thickIn" class="text-xs" style="color:#9DB3A8">(0.98 in)</span>
+          </label>
+          <input type="range" id="thickness" min="5" max="115" step="1" value="25">
+          <div class="flex justify-between mono text-[10px] mt-1" style="color:#5F7268"><span>5 mm</span><span>115 mm</span></div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <span class="mono text-xs tracking-widest uppercase block mb-2" style="color:var(--accent)">Starting state</span>
+            <div class="grid grid-cols-2 gap-2" id="stateSeg">
+              <button type="button" class="seg-btn active" data-frozen="0">❄ Thawed</button>
+              <button type="button" class="seg-btn" data-frozen="1">🧊 Frozen</button>
+            </div>
+          </div>
+          <div>
+            <label for="bathTemp" class="mono text-xs tracking-widest uppercase block mb-2" style="color:var(--accent)">Bath temp °C</label>
+            <input type="number" id="bathTemp" min="40" max="90" step="0.5" value="55">
+          </div>
+        </div>
+        <p class="mono text-[11px] leading-relaxed" style="color:#5F7268">
+          TIP: measure the THICKEST point of the pouch. Time scales with thickness² — a steak twice as thick takes ~4× longer.
+        </p>
+      </div>
+    </section>
+
+    <!-- ===== PANEL B: READOUT ===== -->
+    <section class="panel" aria-label="Computation readout">
+      <div class="panel-head"><span class="led"></span> ▸ Thermal Readout</div>
+      <div class="p-5">
+        <div class="grid grid-cols-2 gap-4">
+          <div class="rounded-xl p-4 text-center" style="background:#0B110E;border:1px solid rgba(249,115,22,.3)">
+            <div class="mono text-[10px] tracking-widest uppercase mb-1" style="color:#9DB3A8">Bath temp</div>
+            <div class="readout-warm text-3xl font-extrabold" id="rBathTemp">55.0 °C</div>
+            <div class="mono text-xs mt-1" style="color:#9DB3A8" id="rBathTempF">131.0 °F</div>
+          </div>
+          <div class="rounded-xl p-4 text-center" style="background:#0B110E;border:1px solid rgba(103,232,249,.3)">
+            <div class="mono text-[10px] tracking-widest uppercase mb-1" style="color:#9DB3A8">Heat-through</div>
+            <div class="readout text-3xl font-extrabold" id="rHeat">1 h 15 min</div>
+            <div class="mono text-xs mt-1" style="color:#9DB3A8">core ≈ bath temp</div>
+          </div>
+          <div class="rounded-xl p-4 text-center" style="background:#0B110E;border:1px solid rgba(103,232,249,.3)">
+            <div class="mono text-[10px] tracking-widest uppercase mb-1" style="color:#9DB3A8">Pasteurization</div>
+            <div class="readout text-3xl font-extrabold" id="rPasteur">2 h 45 min</div>
+            <div class="mono text-xs mt-1" style="color:#9DB3A8">total bath time</div>
+          </div>
+          <div class="rounded-xl p-4 text-center" style="background:#0B110E;border:1px solid rgba(103,232,249,.3)">
+            <div class="mono text-[10px] tracking-widest uppercase mb-1" style="color:#9DB3A8">Hold after core</div>
+            <div class="readout text-3xl font-extrabold" id="rHold">1 h 30 min</div>
+            <div class="mono text-xs mt-1" style="color:#9DB3A8">pathogen kill phase</div>
+          </div>
+        </div>
+        <div class="mt-4 rounded-xl p-4 flex items-center justify-between gap-4" style="background:#0B110E;border:1px dashed rgba(103,232,249,.3)">
+          <div>
+            <div class="mono text-[10px] tracking-widest uppercase" style="color:#9DB3A8">Cook-chill · ice-water time to 5 °C core</div>
+            <div class="readout text-2xl font-bold mt-1" id="rChill">50 min</div>
+          </div>
+          <button type="button" class="btn-ghost text-sm no-print" id="btnChill">⏱ Start chill timer</button>
+        </div>
+        <div class="mono text-2xl text-center mt-3 tracking-widest" id="chillTimer" style="color:var(--primary)"></div>
+        <div class="mt-4 rounded-xl p-4" style="background:rgba(249,115,22,.06);border:1px solid rgba(249,115,22,.35)">
+          <div class="mono text-[10px] tracking-widest uppercase mb-1" style="color:var(--primary)">★ Recommended total bath time</div>
+          <div class="readout-warm text-4xl font-extrabold" id="rTotal">2 h 45 min</div>
+          <div class="mono text-xs mt-1" style="color:#9DB3A8" id="rModel">Baldwin Table 5.1 · interpolated</div>
+        </div>
+        <div id="warnings" class="mt-4 space-y-2"></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ===== PANEL C: BATH SEQUENCER ===== -->
+  <section class="panel mt-6 no-print" aria-label="Bath sequencer">
+    <div class="panel-head"><span class="led"></span> ▸ Multi-Item Bath Sequencer</div>
+    <div class="p-5">
+      <p class="text-sm mb-4" style="color:#9DB3A8">Cooking several proteins for one dinner? Add each item with the settings above, set your target serve time, and SousLine staggers the drop-in times so everything finishes together.</p>
+      <div class="flex flex-wrap gap-3 items-end">
+        <button type="button" class="btn-primary text-sm" id="btnAddItem">＋ Add current item</button>
+        <div class="flex-1 min-w-[220px]">
+          <label for="serveTime" class="mono text-xs tracking-widest uppercase block mb-2" style="color:var(--accent)">Target serve time</label>
+          <input type="datetime-local" id="serveTime">
+        </div>
+        <button type="button" class="btn-ghost text-sm" id="btnSchedule">Compute schedule</button>
+        <button type="button" class="btn-ghost text-sm" id="btnClearItems" style="color:#F87171;border-color:rgba(248,113,113,.4)">Clear</button>
+      </div>
+      <div id="itemList" class="mt-4 space-y-2"></div>
+      <div id="scheduleList" class="mt-4 space-y-3"></div>
+    </div>
+  </section>
+</main>
+
+<!-- ===================== BOTTOM AD ===================== -->
+<div class="no-print mx-auto max-w-6xl px-4 sm:px-6 pb-4" role="complementary" aria-label="Advertisement">
+  <div class="mx-auto text-center" style="max-width:728px">
+    <span class="block text-[10px] tracking-[0.18em] uppercase text-slate-400 mb-1.5">Advertisement</span>
+    <div class="flex justify-center overflow-hidden">
+      <script async src="https://js.wpadmngr.com/static/adManager.js" data-admpid="464498"></script>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== SEO ARTICLE ===================== -->
+<article class="max-w-4xl mx-auto px-4 sm:px-6 pb-10 article">
+  <h2>The Complete Guide to Sous Vide Time and Temperature</h2>
+  <p>Sous vide cooking looks deceptively simple: seal food in a bag, drop it in a precisely heated water bath, and wait. But the two numbers that decide whether dinner is sublime or unsafe — <strong>time and temperature</strong> — are governed by real thermal physics. This guide explains exactly how a <strong>sous vide time and temperature calculator</strong> works, why thickness matters more than weight, how shape changes everything, and when "cooked through" is not the same as "safe to eat." Every number in the SousLine planner above is computed from the published tables of Dr. Douglas Baldwin's <em>A Practical Guide to Sous Vide Cooking</em>, the reference that professional kitchens and food-safety researchers have trusted for over fifteen years.</p>
+
+  <h2>Why Thickness — Not Weight — Controls Sous Vide Time</h2>
+  <p>Ask ten home cooks how long to sous vide a steak and nine will answer with a weight: "it's a 300-gram steak." That number is almost useless. Heat travels by conduction from the surface to the geometric center of the food, and the distance it must travel is half the thickness. Double the thickness of a steak and you do not double the cooking time — you roughly <strong>quadruple</strong> it. A 25&nbsp;mm steak reaches temperature in about 1¼ hours as a slab; the same cut at 50&nbsp;mm needs about 3½ hours. Weight tells you nothing about this; a long flat 300-gram fillet and a short fat 300-gram chunk behave completely differently in the bath.</p>
+  <p>This is why every serious <strong>sous vide thickness chart</strong> — including Baldwin's Table 2.2 — is organized by millimeters, not grams. The practical takeaway: always measure the thickest point of your sealed pouch with a ruler, and plan from that number. If you are cooking several pieces, the thickest one sets the schedule for the whole bath.</p>
+
+  <h2>Shape Matters: Slab, Cylinder and Sphere Heat Differently</h2>
+  <p>Most online calculators ask only for thickness and quietly assume your food is a flat slab. That assumption can be badly wrong. Heat enters from every exposed surface, so a cylinder (a rolled roulade, a sausage, a beef tenderloin) and a sphere (a meatball, a whole tied roast) reach core temperature much faster than a slab of the same thickness — heat converges on the center from more directions at once.</p>
+  <p>Baldwin formalized this with a geometric factor: a large flat slab is the slowest shape, a long cylinder heats roughly 40–50% faster, and a sphere is faster still. The numbers are striking. A 40&nbsp;mm slab needs about 2½ hours to come within half a degree of the bath; the same 40&nbsp;mm as a cylinder needs only about 1¼ hours, and as a sphere under an hour. SousLine is <strong>shape-aware</strong>: pick the geometry closest to your cut and the heat-through time is interpolated from the matching column of the published tables instead of a one-size-fits-all guess.</p>
+  <p>One caveat the tables themselves carry: they assume pouches do not touch or overlap and stay fully submerged. Crowded bags insulate each other and every published time underestimates reality. Give each pouch its own water contact.</p>
+
+  <h2>Heat-Through vs. Pasteurization: Two Different Finish Lines</h2>
+  <p>Here is the distinction that separates a decent <strong>sous vide time and temperature calculator</strong> from a dangerous one. "Heat-through" means the core has reached the bath temperature — the steak is medium-rare edge to edge. "Pasteurization" means the food has additionally been <em>held</em> at temperature long enough to destroy pathogens. The two finish lines are hours apart at low temperatures.</p>
+  <p>Food-safety experts target a million-to-one reduction in <em>Listeria</em>, a ten-million-to-one reduction in <em>Salmonella</em>, and a hundred-thousand-to-one reduction in <em>E.&nbsp;coli</em>. Because bacteria die faster as temperature rises, the required <strong>sous vide pasteurization time</strong> collapses with heat: beef at 55&nbsp;°C (131&nbsp;°F) needs roughly 2¾ hours at 25&nbsp;mm, but the same cut at 60&nbsp;°C (140&nbsp;°F) needs only about 1½ hours. Baldwin computed these worst-case times numerically from measured D-values (the minutes needed to kill 90% of a pathogen at a reference temperature) and z-values (how fast lethality scales with temperature), so you never have to do the microbiology yourself.</p>
+  <p>The planner above shows both numbers separately: the heat-through time and the <em>hold</em> — the extra minutes after the core arrives during which pathogens are actually being destroyed. Watching the hold shrink as you nudge the bath temperature up is the single best intuition-builder in sous vide safety.</p>
+
+  <h2>The 54.4&nbsp;°C Floor: When Pasteurization Is Not Practical</h2>
+  <p>Baldwin's pasteurization tables start at 54.4&nbsp;°C (130&nbsp;°F), and that is not an accident. Below about 52–54&nbsp;°C, pathogens such as <em>Clostridium perfringens</em> can still grow, and the holding times needed for a safe kill stretch into impractical territory. If your doneness preset sits below the floor — a 50&nbsp;°C rare steak or 42&nbsp;°C rare salmon — SousLine will tell you plainly: pasteurization is not on the table. That food must be served within four hours and must never be cook-chilled for later. This is not the tool being cautious; it is the physics being honest.</p>
+
+  <h2>Cooking From Frozen: The Honest Adjustment</h2>
+  <p>Yes, you can cook sous vide straight from frozen — one of the method's genuine superpowers. But frozen food carries the latent heat of thawing: melting ice inside the meat absorbs a large amount of energy before the temperature can even begin to climb. Baldwin's Table 2.3 quantifies it: a 25&nbsp;mm slab that heats through in 1¼ hours thawed needs about 1¾ hours from frozen; a 50&nbsp;mm slab jumps from 3½ to over 5 hours.</p>
+  <p>For pasteurization, no frozen tables were ever published, so SousLine applies the standard conservative correction used by working chefs: it adds the frozen-vs-thawed heat-through <em>delta</em> to the tabulated pasteurization total. The hold phase itself does not change — once the core is hot, ice is irrelevant — only the journey there gets longer. Toggle "Frozen" in the planner and watch both readouts move.</p>
+
+  <h2>Cook-Chill: The Ice Bath Is Not Optional</h2>
+  <p>Cooking kills active bacteria, but it does not kill spores. When pasteurized food cools slowly through the danger zone, surviving spores of <em>Clostridium</em> can germinate and multiply. Baldwin's answer is Table 1.1: the sealed pouch must go into ice water that is at least half ice until the core reaches 5&nbsp;°C (41&nbsp;°F), and the time depends — again — on thickness and shape. A 50&nbsp;mm slab needs nearly 3 hours of ice bath; the same thickness as a sphere needs about 1 hour.</p>
+  <p>Only then may the food be refrigerated (a few days) or frozen (up to a year). The planner's cook-chill readout gives you that ice-bath time, and the built-in chill timer counts it down with an audible alert so you do not have to babysit the clock. Never cool pasteurized food on the counter "for a bit first" — the spore clock starts the moment the pouch leaves the bath.</p>
+
+  <h2>Sequencing a Whole Dinner in One Bath</h2>
+  <p>The feature SousLine owners reach for most is the bath sequencer. A real dinner is never one steak: it is chicken thighs at 74&nbsp;°C, a medium-rare strip at 55&nbsp;°C, and salmon somebody requested at 50&nbsp;°C, all meant to land on the table at 7:30 PM. Because every protein has a different total bath time, the trick is to work backwards — drop the longest cook first and stagger the rest.</p>
+  <p>Add each item, set your serve time, and the sequencer outputs a drop-in schedule ordered by start time, with clock times you can set phone alarms to. It also flags temperature conflicts: items more than about 1.5&nbsp;°C apart cannot share a bath, so the schedule tells you honestly when you need a second circulator (or a cooler with hot water as a holding bath). Plan once, drop on schedule, sear everything at the end.</p>
+
+  <h2>Temperature Quick Reference</h2>
+  <p>These are the doneness anchors built into the planner's presets, drawn from Baldwin's Table 2.1 and widely used restaurant practice:</p>
+  <table>
+    <tr><th>Protein</th><th>Rare</th><th>Medium-rare</th><th>Medium</th><th>Well</th></tr>
+    <tr><td>Beef / lamb</td><td>50–52 °C</td><td>55 °C</td><td>60 °C</td><td>71 °C</td></tr>
+    <tr><td>Pork</td><td>—</td><td>58 °C</td><td>61 °C</td><td>71 °C</td></tr>
+    <tr><td>Chicken breast</td><td>—</td><td>—</td><td>60–63 °C*</td><td>74 °C</td></tr>
+    <tr><td>Chicken thigh</td><td>—</td><td>—</td><td>65 °C*</td><td>74–82 °C</td></tr>
+    <tr><td>Lean fish</td><td>45 °C</td><td>50 °C</td><td>55–60 °C</td><td>—</td></tr>
+    <tr><td>Fatty fish (salmon)</td><td>42 °C</td><td>50 °C</td><td>60 °C</td><td>—</td></tr>
+  </table>
+  <p class="mono text-xs">* Poultry below 74 °C is safe ONLY when pasteurized for the full tabulated time — never shortcut the hold.</p>
+
+  <h2>Why We Built on Baldwin's Tables</h2>
+  <p>Dozens of sous vide charts circulate online, many copied from each other with the provenance sanded off. Douglas Baldwin's <em>A Practical Guide to Sous Vide Cooking</em> is different: every table is derived from the heat equation and published pathogen-kill kinetics, with the assumptions printed alongside the numbers. Tables 2.2 and 2.3 give heat-through times by thickness and shape; Tables 3.1, 4.1 and 5.1 give pasteurization totals for fish, poultry and meat; Table 1.1 gives ice-water cooling times. SousLine bakes these tables in and interpolates between the published points, credits the source on every readout, and flags clearly the two places where we extend beyond the printed page: fish pasteurization (computed from Baldwin's published Table 3.1 model parameters) and the frozen pasteurization delta (a conservative, documented approximation). When a number matters for safety, you deserve to know exactly where it came from.</p>
+
+  <h2>A Final Word on Safety</h2>
+  <p>Sous vide is extraordinarily safe when the tables are respected — and unforgiving when they are improvised. Keep baths at or above 54.4&nbsp;°C for any cook longer than four hours, never stack or overlap pouches, chill rapidly in real ice water before storing, and treat every sub-pasteurization cook as serve-immediately food. The planner does the arithmetic; your thermometer, your ice, and your judgment do the rest.</p>
+
+  <h2>Frequently Asked Questions</h2>
+  <details class="faq">
+    <summary>How long does it take to sous vide a 1-inch (25 mm) steak?</summary>
+    <div class="faq-body">A 25&nbsp;mm (1-inch) steak as a slab needs about 1¼ hours thawed (1¾ hours from frozen) just to heat through. For full pasteurization, Baldwin's tables give about 2¾ hours at 55&nbsp;°C / 131&nbsp;°F or about 1½ hours at 60&nbsp;°C / 140&nbsp;°F. Shape matters: the same thickness as a cylinder heats through in roughly 40 minutes. Enter your exact thickness in the SousLine planner for the interpolated number.</div>
+  </details>
+  <details class="faq">
+    <summary>What is the minimum safe temperature for sous vide cooking?</summary>
+    <div class="faq-body">For cooks longer than 4 hours, or any food you plan to pasteurize or cook-chill, the bath should be at least 54.4&nbsp;°C (130&nbsp;°F). Below this, pathogens like <em>Clostridium perfringens</em> can grow and pasteurization times become impractical. Lower-temperature cooks (rare salmon at 42&nbsp;°C, for example) are a serve-immediately proposition, not a meal-prep one.</div>
+  </details>
+  <details class="faq">
+    <summary>Is "cooked through" the same as pasteurized?</summary>
+    <div class="faq-body">No — and this is the most important distinction in sous vide. Heat-through means the core reached the bath temperature; pasteurization means it was <em>held</em> there long enough to achieve a million-to-one reduction in <em>Listeria</em> and similar kills of <em>Salmonella</em> and <em>E.&nbsp;coli</em>. At 55&nbsp;°C the hold phase can add well over an hour beyond heat-through. SousLine shows both numbers separately so you can see exactly what the safety margin costs.</div>
+  </details>
+  <details class="faq">
+    <summary>Can I cook sous vide directly from frozen?</summary>
+    <div class="faq-body">Yes. Melting the internal ice adds a predictable delay — roughly 40–60% more heat-through time depending on thickness and shape (Baldwin's Table 2.3). SousLine's Frozen toggle applies the tabulated frozen heating times and adds the frozen-vs-thawed delta to the pasteurization total. Do not refreeze raw meat that was thawed at room temperature; thaw it in the fridge or cook it from frozen.</div>
+  </details>
+  <details class="faq">
+    <summary>How do I safely cook-chill sous vide food for later?</summary>
+    <div class="faq-body">Leave the food sealed in its pouch and submerge it in ice water that is at least half ice until the core reaches 5&nbsp;°C (41&nbsp;°F) — Baldwin's Table 1.1 times range from minutes for thin fillets to nearly 3 hours for a 50&nbsp;mm slab. Then refrigerate for a few days or freeze for up to a year. Rapid chilling stops spore-forming bacteria from germinating. Use the planner's ice-bath readout and chill timer.</div>
+  </details>
+  <details class="faq">
+    <summary>Can I cook chicken, steak and salmon in the same water bath?</summary>
+    <div class="faq-body">Only if their target temperatures are within about 1.5&nbsp;°C of each other — otherwise each protein needs its own bath or its own time window. A common strategy: run the bath at the highest needed temperature first, then drop the temperature and add the delicate items later. SousLine's bath sequencer computes staggered start times for a shared serve time and flags temperature conflicts automatically.</div>
+  </details>
+</article>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {"@type": "Question", "name": "How long does it take to sous vide a 1-inch (25 mm) steak?", "acceptedAnswer": {"@type": "Answer", "text": "A 25 mm (1-inch) steak as a slab needs about 1¼ hours thawed (1¾ hours from frozen) just to heat through. For full pasteurization, Baldwin's tables give about 2¾ hours at 55 °C / 131 °F or about 1½ hours at 60 °C / 140 °F. Shape matters: the same thickness as a cylinder heats through in roughly 40 minutes."}},
+    {"@type": "Question", "name": "What is the minimum safe temperature for sous vide cooking?", "acceptedAnswer": {"@type": "Answer", "text": "For cooks longer than 4 hours, or any food you plan to pasteurize or cook-chill, the bath should be at least 54.4 °C (130 °F). Below this, pathogens like Clostridium perfringens can grow and pasteurization times become impractical."}},
+    {"@type": "Question", "name": "Is 'cooked through' the same as pasteurized?", "acceptedAnswer": {"@type": "Answer", "text": "No. Heat-through means the core reached the bath temperature; pasteurization means it was held there long enough to achieve a million-to-one reduction in Listeria and similar kills of Salmonella and E. coli. At 55 °C the hold phase can add well over an hour beyond heat-through."}},
+    {"@type": "Question", "name": "Can I cook sous vide directly from frozen?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Melting internal ice adds roughly 40–60% more heat-through time depending on thickness and shape (Baldwin's Table 2.3). Add the frozen-vs-thawed delta to the pasteurization total as a conservative correction."}},
+    {"@type": "Question", "name": "How do I safely cook-chill sous vide food for later?", "acceptedAnswer": {"@type": "Answer", "text": "Keep food sealed and submerge in ice water (at least half ice) until the core reaches 5 °C / 41 °F — from minutes for thin fillets to nearly 3 hours for a 50 mm slab per Baldwin's Table 1.1. Then refrigerate for a few days or freeze for up to a year."}},
+    {"@type": "Question", "name": "Can I cook chicken, steak and salmon in the same water bath?", "acceptedAnswer": {"@type": "Answer", "text": "Only if target temperatures are within about 1.5 °C of each other. Otherwise each protein needs its own bath or time window. A bath sequencer can stagger start times for a shared serve time and flag temperature conflicts."}}
+  ]
+}
+</script>
+
+<footer class="no-print border-t mt-6" style="border-color:rgba(103,232,249,.14)">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+    <span class="mono text-sm" style="color:#9DB3A8">SOUS<span style="color:var(--primary)">LINE</span> · thermal data: D. Baldwin, <em>A Practical Guide to Sous Vide Cooking</em></span>
+    <nav class="mono text-sm flex items-center gap-5">
+      <a href="#top" style="color:var(--accent)">Home</a>
+      <span style="color:#3A4A43">|</span>
+      <a href="https://fixoraa.tech" style="color:var(--accent)">More Tools</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+  var S = window.SOUSLINE;
+  if (!S) return;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var proteinEl = $('protein'), donenessEl = $('doneness'), thickEl = $('thickness'),
+      tempEl = $('bathTemp'), warningsEl = $('warnings');
+  var state = { shape: 'slab', frozen: false };
+  var items = [];
+  try { items = JSON.parse(localStorage.getItem('sousline-items') || '[]'); } catch (e) { items = []; }
+  var chillInt = null;
+
+  /* ---- populate protein + doneness ---- */
+  S.PROTEINS.forEach(function (p) {
+    var o = document.createElement('option');
+    o.value = p.id; o.textContent = p.name;
+    proteinEl.appendChild(o);
+  });
+  function fillDoneness() {
+    var p = S.getProtein(proteinEl.value);
+    donenessEl.innerHTML = '';
+    p.doneness.forEach(function (d, i) {
+      var o = document.createElement('option');
+      o.value = d[1]; o.textContent = d[0] + ' · ' + d[1] + ' °C';
+      if (i === 1 || (p.doneness.length === 1)) o.selected = true;
+      donenessEl.appendChild(o);
+    });
+    if (!tempEl.dataset.touched) tempEl.value = donenessEl.value;
+  }
+  proteinEl.addEventListener('change', fillDoneness);
+  donenessEl.addEventListener('change', function () { tempEl.value = donenessEl.value; tempEl.dataset.touched = ''; update(); });
+  tempEl.addEventListener('input', function () { tempEl.dataset.touched = '1'; update(); });
+
+  /* ---- segmented controls ---- */
+  function segWire(id, attr, cb) {
+    var box = $(id);
+    box.addEventListener('click', function (e) {
+      var b = e.target.closest('.seg-btn'); if (!b) return;
+      box.querySelectorAll('.seg-btn').forEach(function (x) { x.classList.remove('active'); });
+      b.classList.add('active'); cb(b.dataset[attr]); update();
+    });
+  }
+  segWire('shapeSeg', 'shape', function (v) { state.shape = v; });
+  segWire('stateSeg', 'frozen', function (v) { state.frozen = v === '1'; });
+
+  thickEl.addEventListener('input', function () {
+    var mm = Number(thickEl.value);
+    $('thickVal').textContent = mm + ' mm';
+    $('thickIn').textContent = '(' + S.mmToIn(mm).toFixed(2) + ' in)';
+    update();
+  });
+
+  /* ---- main readout ---- */
+  function currentOpts() {
+    return {
+      proteinId: proteinEl.value,
+      shape: state.shape,
+      thicknessMM: Number(thickEl.value),
+      tempC: Number(tempEl.value),
+      frozen: state.frozen
+    };
+  }
+  function update() {
+    var plan = S.planCook(currentOpts());
+    if (!plan.ok) return;
+    $('rBathTemp').textContent = plan.bathTempC.toFixed(1) + ' °C';
+    $('rBathTempF').textContent = plan.bathTempF.toFixed(1) + ' °F';
+    $('rHeat').textContent = S.formatDuration(plan.heatMin);
+    $('rPasteur').textContent = plan.pasteurizable ? S.formatDuration(plan.pasteurTotalMin) : 'n/a';
+    $('rHold').textContent = plan.pasteurizable ? S.formatDuration(plan.pasteurHoldMin) : 'n/a';
+    $('rChill').textContent = S.formatDuration(plan.chillMin);
+    $('rTotal').textContent = S.formatDuration(plan.totalMin);
+    $('rModel').textContent = plan.pasteurizable
+      ? 'Baldwin ' + (plan.model === 'table-3.1-model' ? 'Table 3.1 model params' : plan.model) + ' · interpolated'
+      : 'heat-through only · below pasteurization range';
+    warningsEl.innerHTML = '';
+    plan.warnings.forEach(function (w) {
+      var d = document.createElement('div');
+      d.className = 'warn'; d.textContent = '⚠ ' + w;
+      warningsEl.appendChild(d);
+    });
+  }
+
+  /* ---- chill timer ---- */
+  $('btnChill').addEventListener('click', function () {
+    var plan = S.planCook(currentOpts());
+    var secs = (plan.chillMin || 1) * 60;
+    if (chillInt) clearInterval(chillInt);
+    var box = $('chillTimer');
+    function tick() {
+      if (secs <= 0) {
+        clearInterval(chillInt); box.textContent = '❄ CHILL COMPLETE';
+        try {
+          var ctx = new (window.AudioContext || window.webkitAudioContext)();
+          var o = ctx.createOscillator(), g = ctx.createGain();
+          o.connect(g); g.connect(ctx.destination); o.frequency.value = 880;
+          o.start(); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.2); o.stop(ctx.currentTime + 1.2);
+        } catch (e) {}
+        return;
+      }
+      var m = Math.floor(secs / 60), s = secs % 60;
+      box.textContent = '❄ ' + m + ':' + (s < 10 ? '0' : '') + s;
+      secs--;
+    }
+    tick(); chillInt = setInterval(tick, 1000);
+  });
+
+  /* ---- sequencer ---- */
+  function saveItems() { try { localStorage.setItem('sousline-items', JSON.stringify(items)); } catch (e) {} }
+  function labelFor(o) {
+    var p = S.getProtein(o.proteinId);
+    return (p ? p.name : o.proteinId) + ' · ' + o.thicknessMM + ' mm ' + o.shape + (o.frozen ? ' · frozen' : '') + ' · ' + o.tempC + ' °C';
+  }
+  function renderItems() {
+    var box = $('itemList'); box.innerHTML = '';
+    if (!items.length) { box.innerHTML = '<p class="mono text-xs" style="color:#5F7268">No items yet — configure above and press "Add current item".</p>'; return; }
+    items.forEach(function (it, i) {
+      var d = document.createElement('div');
+      d.className = 'flex items-center justify-between gap-3 rounded-lg px-3 py-2 mono text-xs';
+      d.style.cssText = 'background:#0B110E;border:1px solid rgba(103,232,249,.2)';
+      var span = document.createElement('span'); span.textContent = (i + 1) + '. ' + labelFor(it);
+      var btn = document.createElement('button');
+      btn.textContent = '✕'; btn.style.color = '#F87171'; btn.className = 'px-2';
+      btn.addEventListener('click', function () { items.splice(i, 1); saveItems(); renderItems(); });
+      d.appendChild(span); d.appendChild(btn); box.appendChild(d);
+    });
+  }
+  $('btnAddItem').addEventListener('click', function () {
+    var o = currentOpts(); o.label = labelFor(o);
+    items.push(o); saveItems(); renderItems();
+  });
+  $('btnClearItems').addEventListener('click', function () { items = []; saveItems(); renderItems(); $('scheduleList').innerHTML = ''; });
+
+  (function initServe() {
+    var d = new Date(Date.now() + 4 * 3600000);
+    var p = function (n) { return (n < 10 ? '0' : '') + n; };
+    $('serveTime').value = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes());
+  })();
+
+  $('btnSchedule').addEventListener('click', function () {
+    var box = $('scheduleList'); box.innerHTML = '';
+    if (!items.length) { box.innerHTML = '<p class="mono text-xs" style="color:#F87171">Add at least one item first.</p>'; return; }
+    var sv = $('serveTime').value;
+    var serveMs = sv ? new Date(sv).getTime() : Date.now() + 4 * 3600000;
+    var sched = S.sequenceBath(items, serveMs);
+    sched.forEach(function (s) {
+      var row = document.createElement('div');
+      row.className = 'flex gap-3 items-start rounded-xl p-4';
+      row.style.cssText = 'background:#0B110E;border:1px solid rgba(103,232,249,.2)';
+      var dot = document.createElement('div'); dot.className = 'timeline-dot';
+      var body = document.createElement('div');
+      var warn = s.tempConflict ? ' <span class="mono text-[10px] px-2 py-0.5 rounded" style="background:rgba(249,115,22,.15);color:var(--primary);border:1px solid rgba(249,115,22,.4)">TEMP CONFLICT — separate bath</span>' : '';
+      body.innerHTML = '<div class="mono text-xs tracking-widest" style="color:var(--accent)">DROP IN · ' + S.formatClock(s.startAtMs) + '</div>' +
+        '<div class="font-semibold mt-1">' + s.name + '</div>' +
+        '<div class="mono text-xs mt-1" style="color:#9DB3A8">bath ' + s.bathTempC.toFixed(1) + ' °C · total ' + S.formatDuration(s.totalMin) + '</div>' + warn;
+      row.appendChild(dot); row.appendChild(body); box.appendChild(row);
+    });
+    var note = document.createElement('p');
+    note.className = 'mono text-[11px] mt-2'; note.style.color = '#5F7268';
+    note.textContent = 'Schedule works backwards from serve time: longest cook drops first. Sear everything after the last item finishes.';
+    box.appendChild(note);
+  });
+
+  /* ---- init ---- */
+  fillDoneness();
+  $('thickVal').textContent = '25 mm';
+  $('thickIn').textContent = '(0.98 in)';
+  renderItems();
+  update();
+})();
+</script>
+</body>
+</html>
